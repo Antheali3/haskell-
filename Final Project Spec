@@ -1,0 +1,15 @@
+Final Project 
+
+1. Data Set:
+  - real time data: IMDB(OMDB)， twitter 
+  - historical data: movie_meta_data from Kaggle
+  
+2. Analysis:
+  - Genre Analysis:
+    - Check if there is a trend in genre of movies made time
+    - Compare different Genre against ratings 
+    
+  - real time analysis: 
+    - Make a prediction on the number of different genres will be made this year
+    - Source the IMDB ratings and Rotten tomato comments, Twitter Comment on the movies already relesed this year and make sentiment analysis
+    - 
