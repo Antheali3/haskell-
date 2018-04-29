@@ -1,0 +1,836 @@
+---
+title: "Final Project Documentation"
+author: "Anthea Yichen Li"
+navlink: "[Click Here for ShinyApp](http://NAVLINK/)"
+og:
+  type: "article"
+  title: "opengraph title"
+  url: "optional opengraph url"
+  image: "optional opengraph image link"
+footer:
+  - content: 'Copyright Anthea Yichen LI'
+date: "`r Sys.Date()`"
+output: markdowntemplates::skeleton
+---
+```{r setup, include =FALSE, warning=FALSE }
+library(dplyr)
+library(data.table)
+library(DT)
+library(ggmap)
+library(ggplot2) 
+library(ggthemes)
+library(ggvis)
+library(glmnet)
+library(googleVis)
+library(grid) 
+library(gridExtra)
+library(janitor)
+library(MASS)
+library(mice)
+library(omdbapi)
+library(pbapply)
+library(PerformanceAnalytics)
+library(plotly)
+library(plyr)
+library(readr)
+library(readr)
+library(ROAuth)
+library(rowr)
+library(RSentiment)
+#library(RWeka)
+library(scatterplot3d)
+library(SnowballC)
+library(streamR)
+library(stringr)
+library(syuzhet)
+library(tabplot)
+library(tidyr)
+#library(tm)
+library(twitteR)
+library(vcd)
+#library(wordcloud)
+library(wordcloud2)
+library(knitr)
+tweets_iw <- read_csv("data/tweets.csv")
+IMDBfg <- read_csv("data/imdb_fistGenre.csv")
+nmovies_backup.df <- read_csv("data/imdb_allGenre.csv")
+genres_backup.df <- read_csv("data/genresdf.csv")
+foo_backup.df <- read_csv("data/foo.csv")
+gen_backup.df <- read_csv("data/gen.csv")
+genperyear_backup.df <- read_csv("data/genperyear1.csv")
+```
+
+This final Project aims find out how hollywood has been commercializing for the past half century. Historical data sourced from IMDB and RottenTomatoes inspire insights on the choices that the film industry have made and try to make sense of the underlying dynamics. The real time data sourced from twitter on four films currently in theater made it possible to take a rough guess on how the boxoffice performance with the underlying insights we have gained through our previous analysis on historical data. 
+
+## Data Sourcing and Description 
+#### Historical Data
+The dataset is from Kaggle, which contains 28 variables for 5043 movies, spanning across 100 years in 66 countries. Amoung all the variables, the project takes a closer look at "Genres", "Gross Box Office", "imdb ratings". https://www.kaggle.com/carolzhangdc/imdb-5000-movie-dataset/data
+The data we will be dealing with are in the form of:
+```{r historical data, warning=FALSE}
+IMDB = read.csv("data/movie-sun.csv")
+head(IMDB[,c("genres","gross","budget","movie_title","title_year","imdb_score")],5)
+```
+#### Real Time data 
+All rea time data are sourced from twitter. The more popular production currently in theater that we will be focusing on are "#InfinityWar", "#AQuitePlace","#IFeelPretty", "#RampageMovie". After setting up the twitter API, we will try to fetch 5000 tweets for each production. 
+
+
+```{r tweets, eval=FALSE, warning=FALSE}
+# # Set API Keys
+# #Setup with the personal secret keys from your Twitter account
+# api_key <- 	"5cQq18oLwAyMcYeTnJXNf1Xs7"
+# api_secret <- "Wi8FDcmtxtQrxOiOwy7hOP5tmCOxfh2jmpx1D5NVrayG2BPtSN"
+# access_token <- "974718269830647810-5aF4ccRqLaMP7yMv1ME2MrTaBxC5sQJ"
+# access_token_secret <- "scb6S8QFCDiiiXuts1FJm8i36hKRsNnq3teGRTXVJKId7"
+# 
+# setup_twitter_oauth(api_key, api_secret, access_token, access_token_secret)
+
+# #InfinityWar 
+# tweets_iw <- searchTwitter('#InfinityWar', n = 5000, lang="en")
+# #AQuitePlace
+# tweets_aqp <- searchTwitter('#AQuitePlace', n = 5000, lang="en")
+# #IFeelPretty
+# tweets_ifp <- searchTwitter('#IFeelPretty', n = 5000, lang="en")
+# #RampageMovie 
+# tweets_rm <- searchTwitter('#RampageMovie', n = 5000, lang="en")
+```
+The data we get are in the form of:
+
+```{r tweets_text,tidy=TRUE, echo = F, warning=FALSE}
+#results = 'asis',
+head(tweets_iw$InfinityWar,5)
+```
+
+For faster user experience, reorganize the tweets into a data frame and write to a csv for further data cleaning 
+```{r tweets_combine}
+# tweets.df <- cbind(tweets.iw$text)
+# tweets.df <- cbind(tweets.df, tweets.aqp$text)
+# tweets.df <- cbind(tweets.df, tweets.ifp$text)
+# tweets.df <- cbind(tweets.df, tweets.rm$text)
+# 
+# colnames(tweets.df) <- c("InfinityWar", "AQuitePlace", "IFeelPretty","Rampage")
+# 
+# write.csv(tweets.df, file = "tweets_long.csv")
+```
+
+## Data Cleaning 
+
+#### Historical Data Cleaning
+##### Used two approach to clean up the "genre" column of the data, which is in form of:
+```{r genreCleaning1, echo=FALSE}
+head(IMDB$genres,5)
+```
+
+##### 1. Extract the first genre that a production has been identified with 
+```{r eval=FALSE}
+# data cleaning 
+filterFirst <- function(x){
+  if (genres.df[x,1] %like% "Action") "Action"
+  else if (genres.df[x,1] %like% "Adventure") "Adventure" 
+  else if (genres.df[x,1] %like% "Adventure") "Adventure"
+  if (genres.df[x,1] %like% "Animation") "Animation" else 
+    if (genres.df[x,1] %like% "Biography") "Biography" else 
+      if (genres.df[x,1] %like% "Comedy") "Comedy" else 
+        if (genres.df[x,1] %like% "Crime") "Crime" else 
+          if (genres.df[x,1] %like% "Documentary") "Documentary" else 
+            if (genres.df[x,1] %like% "Drama") "Drama" else 
+              if (genres.df[x,1] %like% "Family") "Family" else 
+                if (genres.df[x,1] %like% "Fantasy") "Fantasy" else 
+                  if (genres.df[x,1] %like% "Film-Noir") "Film-Noir" else 
+                    if (genres.df[x,1] %like% "History") "History" else 
+                      if (genres.df[x,1] %like% "Horror") "Horror" else 
+                        if (genres.df[x,1] %like% "Musical") "Musical" else 
+                          if (genres.df[x,1] %like% "Mystery") "Mystery" else 
+                            if (genres.df[x,1] %like% "News") "News" else 
+                              if (genres.df[x,1] %like% "Romance") "Romance" else 
+                                if (genres.df[x,1] %like% "Sci-Fi") "Sci-Fi" else 
+                                  if (genres.df[x,1] %like% "Short") "Short" else 
+                                    if (genres.df[x,1] %like% "Sport") "Sport" else 
+                                      if (genres.df[x,1] %like% "Thriller") "Thriller" else 
+                                        if (genres.df[x,1] %like% "War") "War" else 
+                                          if (genres.df[x,1] %like% "Western") "Western" else "None"}
+
+IMDBfg$genres <- sapply(1:length(IMDBfg$genres), filterFirst)
+```
+###### Extract the values that we care about then tidy up the data set
+```{r eval = FALSE}
+genres.df <- as.data.frame(IMDB[,c("genres", "imdb_score", "title_year")])
+genres.df <- genres.df[order(genres.df$title_year),]
+genres.df <- genres.df[complete.cases(genres.df), ]
+genres.df <- genres.df %>% drop_na()
+```
+
+###### Data are in the form of:
+```{r cache=FALSE}
+head(IMDBfg[,c("movie_title", "genres")],5)
+```
+
+##### 2. For Each year, count the number of different genres made with sapply
+```{r eval = FALSE}
+# data cleaning split genre column into factor levels of genres with binary 1 or 0 value 
+genres.df <- as.data.frame(IMDB[,c("genres", "imdb_score", "title_year")])
+# separate different genres into new columns
+genres.df$Action <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Action") 1 else 0)
+genres.df$Adventure <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Adventure") 1 else 0)
+genres.df$Animation <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Animation") 1 else 0)
+genres.df$Biography <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Biography") 1 else 0)
+genres.df$Comedy <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Comedy") 1 else 0)
+genres.df$Crime <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Crime") 1 else 0)
+genres.df$Documentary <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Documentary") 1 else 0)
+genres.df$Drama <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Drama") 1 else 0)
+genres.df$Family <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Family") 1 else 0)
+genres.df$Fantasy <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Fantasy") 1 else 0)
+genres.df$`Film-Noir` <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Film-Noir") 1 else 0)
+genres.df$History <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "History") 1 else 0)
+genres.df$Horror <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Horror") 1 else 0)
+genres.df$Musical <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Musical") 1 else 0)
+genres.df$Mystery <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Mystery") 1 else 0)
+genres.df$News <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "News") 1 else 0)
+genres.df$Romance <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Romance") 1 else 0)
+genres.df$`Sci-Fi` <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Sci-Fi") 1 else 0)
+genres.df$Short <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Short") 1 else 0)
+genres.df$Sport <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Sport") 1 else 0)
+genres.df$Thriller <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Thriller") 1 else 0)
+genres.df$War <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "War") 1 else 0)
+genres.df$Western <- sapply(1:length(genres.df$genres), function(x) if (genres.df[x,1] %like% "Western") 1 else 0)
+
+genres_backup.df <-genres.df
+
+```
+
+##### Also just collect each genre and leave as strings
+
+```{r eval=FALSE}
+g <- strsplit(as.character(foodata$genres),'|',fixed=TRUE)
+g1 <- do.call(rbind.data.frame, g)
+colnames(g1) <- c('gen1','gen2','gen3', 'gen4','gen5','gen6','gen7','gen8')
+g1$gen1 <- as.character(g1$gen1)
+g1$gen2 <- as.character(g1$gen2)
+g1$gen3 <- as.character(g1$gen3)
+g1$gen4 <- as.character(g1$gen4)
+g1$gen5 <- as.character(g1$gen5)
+g1$gen6 <- as.character(g1$gen6)
+g1$gen7 <- as.character(g1$gen7)
+g1$gen8 <- as.character(g1$gen8)
+foo <- foodata
+foo <- data.frame(cbind(foodata,g1),stringsAsFactors=FALSE)
+foo <- foo %>% drop_na()
+foo<-foo[complete.cases(foo),]
+```
+
+###### Because each row is identified with the movie title not the year, accumulate the count for each year with nested for loops:
+```{r eval = FALSE}
+nmovies.df <- as.data.frame(table(genres.df$title_year))
+
+nmovies.df <- cbind.fill(nmovies.df, genres.df[c(1:117),c(4:23)], fill = 0)
+
+for (i in 3:22) {
+  nmovies.df[i] = 0
+}
+r <- nrow(genres.df)-1
+for (j in 1:91) {
+  for (i in j:r){
+    # debugging: 
+    # i
+    # j
+    # genres.df$title_year[i]
+    # nmovies.df$Var1[j]
+    if(genres.df$title_year[i] == nmovies.df$Var1[j]){
+      for (k in 3:22) {
+        if (genres.df[i,k+1]==1){
+          nmovies.df[j, k] = nmovies.df[j, k] + 1
+        }
+      }
+    }
+  }
+}
+
+nmovies_backup.df<- nmovies.df
+
+```
+
+
+###### Data are in the form of:
+```{r}
+tail(nmovies_backup.df,5)
+```
+
+
+
+
+#### Real Time Tweets Cleaning 
+  Use gsub and Corpus to process strings to remove remove protocol symbols embeded in the tweets including RETWEETS, URL's, People tagged, and so on. After we finish the processing, sort the dta into data frame and save as csv again. 
+
+
+```{r TweetsCleaning}
+# #remove retweets
+# iwtxt<-gsub("(RT|via)((?:\\b\\w*@\\w+)+)","",iw)
+# aqptxt<-gsub("(RT|via)((?:\\b\\w*@\\w+)+)","",aqp)
+# ifptxt<-gsub("(RT|via)((?:\\b\\w*@\\w+)+)","",ifp)
+# rmtxt<-gsub("(RT|via)((?:\\b\\w*@\\w+)+)","",rm)
+# # r1_txt<-gsub("(RT|via)((?:\\b\\w*@\\w+)+)","",r1)
+# 
+# #clean html links
+# iwtxt<-gsub("http[^[:blank:]]+","",iwtxt)
+# aqptxt<-gsub("http[^[:blank:]]+","",aqptxt)
+# ifptxt<-gsub("http[^[:blank:]]+","",ifptxt)
+# rmtxt<-gsub("http[^[:blank:]]+","",rmtxt)
+# 
+# #remove people names
+# iwtxt<-gsub("@\\w+","",iwtxt)
+# aqptxt<-gsub("@\\w+","",aqptxt)
+# ifptxt<-gsub("@\\w+","",ifptxt)
+# rmtxt<-gsub("@\\w+","",rmtxt)
+# 
+# #remove punctuations
+# iwtxt<-gsub("[[:punct:]]"," ",iwtxt)
+# ifptxt<-gsub("[[:punct:]]","",as.character(ifptxt))
+# iwtxt<-gsub("[[:punct:]]","",as.character(iwtxt))
+# aqptxt<-gsub("[[:punct:]]","",as.character(aqptxt))
+# 
+# ##let's remove number (alphanumeric)
+# iwtxt<-gsub("[^[:alnum:]]"," ",iwtxt)
+# aqptxt<-gsub("[^[:alnum:]]","",as.character(aqptxt))
+# ifptxt<-gsub("[^[:alnum:]]","",as.character(ifptxt))
+# rmtxt<-gsub("[^[:alnum:]]","",as.character(rmtxt))
+# 
+# 
+# iwtxt<-gsub("^\\s+|\\s+$","",as.character(iwtxt))
+# aqptxt<-gsub("^\\s+|\\s+$","",as.character(aqptxt))
+# ifptxt<-gsub("^\\s+|\\s+$","",as.character(ifptxt))
+# rmtxt<-gsub("^\\s+|\\s+$","",as.character(rmtxt))
+
+#Data Preprocessing Rampage
+# set.seed(100)
+# sampleRM = sample(rm, (length(rmptxt)))
+# corRM = Corpus(VectorSource(list(sampleRM)))
+# corRM = tm_map(corRM, removePunctuation)
+# corRM = tm_map(corRM, content_transformer(tolower))
+# corRM = tm_map(corRM, removeNumbers)
+# corRM = tm_map(corRM, removeWords, c(stopwords('english'),'tweets2','tweets'))
+# corRM = tm_map(corRM, stripWhitespace)
+# corRM = tm_map(corRM, stemDocument)
+# 
+# removeSpecialChars <- function(x) gsub("[^a-zA-Z0-9] ","",x)
+# corRM = tm_map(corRM, removeSpecialChars)
+# 
+# corRM <- tm_map(corRM, PlainTextDocument)
+# 
+# corpus <- cbind(corIW, corAQP, corIFP,corRM)
+# 
+# colnames(corpus) <- c("IW", "AQP", "IFP","RM")
+# 
+# write.csv(corpus, file = "tweets_clean.csv")
+```
+The tweets after our cleaning becomes: 
+
+```{r}
+
+```
+
+
+
+
+## Analysis and Plots
+
+#### Historical Data Analysis
+
+##### The very first thing to look at is the total number of movies released each year to get some idea of how the industry had been performing across the span of our data set
+
+```{r}
+# get the year with max count
+maxyear <- nmovies_backup.df[which.max(nmovies_backup.df$Freq),]$Var1
+genres_backup.df$colour = "other years"
+genres_backup.df$colour[genres_backup.df$title_year == maxyear] <- "2009"
+
+#df$est[df$b == 0] <- (df$a[df$b == 0] - 5)/2.533 
+
+#time series number of movies produced per year
+ggplot(genres_backup.df, aes(title_year, fill=colour)) +
+  geom_bar() +
+  labs(x = "Year movie was released", y = "Movie Count", title = "Histogram of Movie released") +
+  # scale_color_manual(labels = c("other year", "year with maximum productions: 2009")) +
+  # guides(color=guide_legend("my title"))+
+  theme_economist()
+
+```
+
+
+##### Obviously, the Industry saw some significant growth from 1980 to 2000, now we extract the some years for representationto get some sense of the underlying dynamics of the majorities of genres made before 1980, after 1980, during and after year 2000
+
+  First clean the data by extracting the years we need
+```{r warning=FALSE, message=FALSE}
+t <- adorn_totals(nmovies_backup.df, where = "row", fill = "-", na.rm = TRUE)
+t_col <- adorn_totals(nmovies_backup.df, where = "col", fill = "-", na.rm = TRUE)
+
+t <- t[,-c(2)]
+# grab specific year for year on year comparison
+t2016 <- melt(t[91,])
+t2016 <- t2016[,c("variable", "value")]
+colnames(t2016) <- c("genre", "total count")
+t2009 <- melt(t[91-7,])
+t2009 <- t2009[,c("variable", "value")]
+colnames(t2009) <- c("genre", "total count")
+t2000 <- melt(t[(91-16),])
+t2000 <- t2000[,c("variable", "value")]
+colnames(t2000) <- c("genre", "total count")
+t1985 <- melt(t[(91-16-15),])
+t1985 <- t1985[,c("variable", "value")]
+colnames(t1985) <- c("genre", "total count")
+t1970 <- melt(t[(91-16-15-15),])
+t1970 <- t1970[,c("variable", "value")]
+colnames(t1970) <- c("genre", "total count")
+t1955 <- melt(t[(91-16-15-15-15),])
+t1955 <- t1955[,c("variable", "value")]
+colnames(t1970) <- c("genre", "total count")
+year.df <- merge(t2016,t2009, by="genre")
+year.df <- merge(year.df,t2000, by="genre")
+colnames(year.df) <-c("genre", "y2016","y2009","y2000")
+year.df <- merge(year.df,t1985, by="genre")
+colnames(year.df) <-c("genre", "y2016","y2009", "y2000","y1985")
+year.df <- merge(year.df,t1970, by="genre")
+colnames(year.df) <-c("genre", "y2016","y2009", "y2000","y1985","y1970")
+
+# drop if entire are zeros
+year.df <-  year.df[-c(11, 16, 19, 7,14),]
+t_1 <- melt(t[92,])
+
+t_1 <- t_1[,c("variable", "value")]
+colnames(t_1) <- c("genre", "total_count")
+t2 <- t_1[-c(11, 16, 19),]
+# different genres produced in total 
+t2 <- t2[order(t2$total_count),]
+rownames(t2) <- seq(length=nrow(t2)) 
+# take out the total count column
+# t2 <- t2[-c(18),]
+
+```
+
+```{r}
+ggplot(data=t2, aes(x=reorder(genre, -total_count),y=total_count)) +
+  geom_bar(stat = "identity",  color="red", fill="red", alpha=0.1)+
+  labs(x = "Genre", y = "Movie Count", title = "Total number of movies released by genre ") +
+  geom_text(aes(label = genre, y=total_count+80), size=3, angle=45, fontface="bold", color="cyan4")+
+  theme_economist()+
+  scale_y_continuous(breaks=seq(0,2800,300))+
+  theme(axis.text.x=element_blank(),
+        axis.title.x = element_text(color="cyan4", size=12, face="bold"),
+        axis.title.y = element_text(color="cyan4", size=12, face="bold"))
+```
+
+##### Now we get the most popular choiced for production in decending order, lets see how they compare with our choices of years.
+
+```{r}
+year.df2 <- melt(year.df, id.vars='genre')
+colnames(year.df2) <- c("genre", "year", "count")
+
+ggplot(year.df2, aes(x=reorder(genre, -count), y=count, fill=year)) +
+  geom_bar(stat = "identity", alpha=0.6)+
+  labs(x = "Genre", y = "Movie Count", title = "Number of different genres by year ") +
+  # geom_text(aes(label = year), position = position_stack(vjust = 0.5),size=3, fontface="bold", color="cyan4")+
+  geom_text(aes(label = genre, y=270), size=3, angle=45, fontface="bold", color="cyan4")+
+  theme_economist()+
+  theme(axis.text.x = element_blank(),
+        # axis.text.x = element_text(size=10, angle=45,face="bold", color="cyan4"),
+        axis.title.x = element_text(color="cyan4", size=12, face="bold"),
+        axis.title.y = element_text(color="cyan4", size=12, face="bold"))
+
+```
+
+
+##### There seem to be a trend in the genres of production, Let's see it in a different way
+
+```{r}
+ggplot(year.df2, aes(x=reorder(genre, -count), y=count, fill=year)) +
+  geom_bar(stat = "identity", alpha=0.6, position='dodge')+
+  labs(x = "Genre", y = "Movie Count", title = "Number of different genres by year ") +
+  # geom_text(aes(label = year), position = position_stack(vjust = 0.5),size=3, fontface="bold", color="cyan4")+
+  geom_text(aes(label = genre, y=20), size=3, angle=45, fontface="bold", color="cyan4")+
+  theme_economist()+
+  theme(axis.text.x = element_blank(),
+        axis.title.x = element_text(color="cyan4", size=12, face="bold"),
+        axis.title.y = element_text(color="cyan4", size=12, face="bold"))
+```
+
+##### There are some significant fluctuations in hollywood's preference on Drama, Comedy and Romance, etc. Trying to understand these preferences, we'll try to see how each genre performs in the boxoffice and why. For the top genres, we extract the Rating, Budget, and BoxOffice information from the dataset. 
+  To extract the information, we go through the data set again, and accumulate the columns of our interest for each genre
+```{r eval = FALSE}
+#Action Comedy Romance Thriller Drama Crime Musical
+#Adventure Sci-Fi Mystery History Family
+
+bol<-T
+Actionrt<-0; Comedyrt<-0; Romancert<-0; Thrillerrt<-0; Crimert<-0;Dramart<-0;Animationrt<-0;SFrt<-0;Adventurert<-0;
+Actiongross<-0; Comedygross<-0; Romancegross<-0; Thrillergross<-0; Crimegross<-0;Dramagross<-0;Animationgross<-0;SFgross<-0;Adventuregross<-0;
+Actioncnt<-0; Comedycnt<-0; Romancecnt<-0; Thrillercnt<-0; Crimecnt<-0;Dramacnt<-0;Adventurecnt<-0
+Animationcnt<-0;SFcnt<-0;
+Actionbudget<-0; Comedybudget<-0; Romancebudget<-0; Thrillerbudget<-0; Crimebudget<-0;Dramabudget<-0;Animationbudget<-0;SFbudget<-0;Adventurebudget<-0
+Genreyear<-0
+foo <- foo[order(foo$title_year),]
+
+j<-1;k<-0
+m<-1
+i<-1
+rows<-nrow(foo)
+n<-1:rows
+foo[rows+1,]<-foo[rows,]
+
+while(i %in% n)
+{ #Actionrt[m]<-0;Actioncnt[m]<-0
+  Actionrt[m]<-0; Comedyrt[m]<-0; Romancert[m]<-0; Thrillerrt[m]<-0; Crimert[m]<-0;Dramart[m]<-0;Animationrt[m]<-0;SFrt[m]<-0;Adventurert[m]<-0;
+  Actioncnt[m]<-0; Comedycnt[m]<-0; Romancecnt[m]<-0; Thrillercnt[m]<-0; Crimecnt[m]<-0;Dramacnt[m]<-0;Animationcnt[m]<-0;SFcnt[m]<-0;Adventurecnt[m]<-0;
+  Actiongross[m]<-0; Comedygross[m]<-0; Romancegross[m]<-0; Thrillergross[m]<-0; Crimegross[m]<-0;Dramagross[m]<-0;Animationgross[m]<-0;SFgross[m]<-0;Adventuregross[m]<-0;
+  Actionbudget[m]<-0; Comedybudget[m]<-0; Romancebudget[m]<-0; Thrillerbudget[m]<-0; Crimebudget[m]<-0;Dramabudget[m]<-0;Animationbudget[m]<-0;SFbudget[m]<-0;Adventurebudget[m]<-0;
+  
+  Genreyear[m]<-0
+  k<-j
+  #j<-i
+  cat("Year:",foo$title_year[j],"\t")
+  while(j==k & i<rows)
+  { 
+    #i<-i+1
+    Genreyear[m]<-foo$title_year[i]
+    bol<-foo[i,] %like% "Action"
+    
+    if(any(bol==T))
+    { 
+      #Genreyear[m]<-foo$year[i]
+      
+      Actionrt[m]<-Actionrt[m]+foo$ratings[i]
+      Actiongross[m]<-Actiongross[m]+foo$gross[i]
+      Actionbudget[m]<-Actionbudget[m]+foo$budget[i]
+      Actioncnt[m]<-Actioncnt[m]+1
+      
+      cat("\tActionrt[",m,"]:",Actionrt[m])
+    }
+    
+    bol<-foo[i,] %in% c("Comedy")
+    
+    if(any(bol==T))
+    {
+      Comedyrt[m]<-Comedyrt[m]+foo$ratings[i]
+      Comedygross[m]<-Comedygross[m]+foo$gross[i]
+      Comedybudget[m]<-Comedybudget[m]+foo$budget[i]
+      Comedycnt[m]<-Comedycnt[m]+1
+    }
+    
+    bol<-foo[i,] %in% c("Adventure")
+    
+    if(any(bol==T))
+    {
+      Adventurert[m]<-Adventurert[m]+foo$ratings[i]
+      Adventuregross[m]<-Adventuregross[m]+foo$gross[i]
+      Adventurebudget[m]<-Adventurebudget[m]+foo$budget[i]
+      Adventurecnt[m]<-Adventurecnt[m]+1
+    }
+    
+    bol<-foo[i,] %in% "Romance"
+    
+    if(any(bol==T))
+    {
+      Romancert[m]<-Romancert[m]+foo$ratings[i]
+      Romancegross[m]<-Romancegross[m]+foo$gross[i]
+      Romancebudget[m]<-Romancebudget[m]+foo$budget[i]
+      Romancecnt[m]<-Romancecnt[m]+1
+    }
+    
+    bol<-foo[i,] %in% "Drama"
+    
+    if(any(bol==T))
+    {
+      Dramart[m]<-Dramart[m]+foo$ratings[i]
+      Dramagross[m]<-Dramagross[m]+foo$gross[i]
+      Dramabudget[m]<-Dramabudget[m]+foo$budget[i]
+      Dramacnt[m]<-Dramacnt[m]+1
+    }
+    
+    bol<-foo[i,] %in% "Thriller"
+    
+    if(any(bol==T))
+    {
+      Thrillerrt[m]<-Thrillerrt[m]+foo$ratings[i]
+      Thrillergross[m]<-Thrillergross[m]+foo$gross[i]
+      Thrillerbudget[m]<-Thrillerbudget[m]+foo$budget[i]
+      Thrillercnt[m]<-Thrillercnt[m]+1
+    }
+    
+    bol<-foo[i,] %in% "Crime"
+    
+    if(any(bol==T))
+    {
+      Crimert[m]<-Crimert[m]+foo$ratings[i]
+      Crimegross[m]<-Crimegross[m]+foo$gross[i]
+      Crimebudget[m]<-Crimebudget[m]+foo$budget[i]
+      Crimecnt[m]<-Crimecnt[m]+1
+    }
+    
+    bol<-foo[i,] %in% "Animation"
+    
+    if(any(bol==T))
+    {
+      Animationrt[m]<-Animationrt[m]+foo$ratings[i]
+      Animationgross[m]<-Animationgross[m]+foo$gross[i]
+      Animationbudget[m]<-Animationbudget[m]+foo$budget[i]
+      Animationcnt[m]<-Animationcnt[m]+1
+    }
+    
+    bol<-foo[i,] %in% "Sci-Fi"
+    
+    if(any(bol==T))
+    {
+      SFrt[m]<-SFrt[m]+foo$ratings[i]
+      SFgross[m]<-SFgross[m]+foo$gross[i]
+      SFbudget[m]<-SFbudget[m]+foo$budget[i]
+      SFcnt[m]<-SFcnt[m]+1
+    }
+    
+    
+    if(foo$title_year[j]!=foo$title_year[j+1])
+    {k<-0
+    m<-m+1
+    }
+    
+    #cat("in:",i,"\t")
+    #cat("\t j:",j,"\t")
+    #cat("year",foo$year[j])
+    
+    if(foo$title_year[j]==foo$title_year[j+1])
+    {i<-i+1}
+    
+    j<-j+1;k<-k+1;
+  }
+  
+  cat("\t outn:",i,"\n")
+  i<-i+1
+  
+}
+
+foo<-foo[-(rows+1),]
+
+#Data frame creation of all the above computed values
+#Action
+genperyear<-data.frame(Genre="Action",Year=Genreyear,Ratings=Actionrt,Count=Actioncnt,Gross = Actiongross, Budget = Actionbudget)
+
+#Comedy
+genperyeartemp<-data.frame(Genre="Comedy",Year=Genreyear,Ratings=Comedyrt,Count=Comedycnt, Gross = Comedygross, Budget = Comedybudget)
+genperyear<-rbind(genperyear,genperyeartemp)
+
+#Adventure
+genperyeartemp<-data.frame(Genre="Adventure",Year=Genreyear,Ratings=Adventurert,Count=Adventurecnt, Gross = Adventuregross, Budget = Adventurebudget)
+genperyear<-rbind(genperyear,genperyeartemp)
+
+#Romance
+genperyeartemp<-data.frame(Genre="Romance",Year=Genreyear,Ratings=Romancert,Count=Romancecnt, Gross = Romancegross, Budget = Romancebudget)
+genperyear<-rbind(genperyear,genperyeartemp)
+
+#Thriller
+genperyeartemp<-data.frame(Genre="Thriller",Year=Genreyear,Ratings=Thrillerrt,Count=Thrillercnt, Gross = Thrillergross, Budget = Thrillerbudget)
+genperyear<-rbind(genperyear,genperyeartemp)
+
+#Crime
+genperyeartemp<-data.frame(Genre="Crime",Year=Genreyear,Ratings=Crimert,Count=Crimecnt, Gross = Crimegross, Budget = Crimebudget)
+genperyear<-rbind(genperyear,genperyeartemp)
+
+#Drama
+genperyeartemp<-data.frame(Genre="Drama",Year=Genreyear,Ratings=Dramart,Count=Dramacnt, Gross = Dramagross, Budget = Dramabudget)
+genperyear<-rbind(genperyear,genperyeartemp)
+
+#Animation
+genperyeartemp<-data.frame(Genre="Animation",Year=Genreyear,Ratings=Animationrt,Count=Animationcnt, Gross = Animationgross, Budget = Animationbudget)
+genperyear<-rbind(genperyear,genperyeartemp)
+
+#SciFi
+genperyeartemp<-data.frame(Genre="SciFi",Year=Genreyear,Ratings=SFrt,Count=SFcnt, Gross = SFgross, Budget = Animationbudget)
+genperyear<-rbind(genperyear,genperyeartemp)
+
+
+#dataframe genperyear contains all the recordings of every genre for every year individually
+genperyear1<-genperyear[genperyear$Count>0,]
+genperyear1<- ddply(genperyear, "Count", trgenform, label_y=cumsum(Count)) 
+genperyear_backup.df <- genperyear1
+```
+
+Sum up the variables and take the average of ratings, budget, and box office, and the collect everything into one data frame:
+```{r eval=FALSE}
+#Variable being summed up together
+Actioncnttot<-sum(Actioncnt);Comedycnttot<-sum(Comedycnt);Romancecnttot<-sum(Romancecnt);Thrillercnttot<-sum(Thrillercnt); Crimecnttot<-sum(Crimecnt);Dramacnttot<-sum(Dramacnt);Animationcnttot<-sum(Animationcnt);SFcnttot<-sum(SFcnt);Adventurecnttot<-sum(Adventurecnt)
+Actionrttot<-sum(Actionrt);Comedyrttot<-sum(Comedyrt);Romancerttot<-sum(Romancert);Thrillerrttot<-sum(Thrillerrt); Crimerttot<-sum(Crimert);Dramarttot<-sum(Dramart);Animationrttot<-sum(Animationrt);SFrttot<-sum(SFrt);Adventurerttot<-sum(Adventurert)
+Actiongrosstot<-sum(Actiongross);Comedygrosstot<-sum(Comedygross);Romancegrosstot<-sum(Romancegross);Thrillergrosstot<-sum(Thrillergross); Crimegrosstot<-sum(Crimegross);Dramagrosstot<-sum(Dramagross);Animationgrosstot<-sum(Animationgross);SFgrosstot<-sum(SFgross);Adventuregrosstot<-sum(Adventuregross)
+Actionbudgettot<-sum(Actionbudget);Comedybudgettot<-sum(Comedybudget);Romancebudgettot<-sum(Romancebudget);Thrillerbudgettot<-sum(Thrillerbudget); Crimebudgettot<-sum(Crimebudget);Dramabudgettot<-sum(Dramabudget);Animationbudgettot<-sum(Animationbudget);SFbudgettot<-sum(SFbudget);Adventurebudgettot<-sum(Adventurebudget)
+
+gen<-data.frame(Genre=c("Action","Comedy","Romance","Thriller","Crime","Drama","Animation","Sci.Fi","Adventure"))
+gen$cnt<-c(Actioncnttot,Comedycnttot,Romancecnttot,Thrillercnttot, Crimecnttot,Dramacnttot,Animationcnttot,SFcnttot,Adventurecnttot)
+gen$totrat<-c(Actionrttot,Comedyrttot,Romancerttot,Thrillerrttot, Crimerttot,Dramarttot,Animationrttot,SFrttot,Adventurerttot)
+gen$avgrat<-c(Actionrttot/Actioncnttot,Comedyrttot/Comedycnttot,Romancerttot/Romancecnttot,Thrillerrttot/Thrillercnttot, Crimerttot/Crimecnttot,Dramarttot/Dramacnttot,Animationrttot/Animationcnttot,SFrttot/SFcnttot,Adventurerttot/Adventurecnttot)
+gen$grosstot<-c(Actiongrosstot,Comedygrosstot,Romancegrosstot,Thrillergrosstot, Crimegrosstot,Dramagrosstot,Animationgrosstot,SFgrosstot,Adventuregrosstot)
+gen$avggross<-c(Actiongrosstot/Actioncnttot,Comedygrosstot/Comedycnttot,Romancegrosstot/Romancecnttot,Thrillergrosstot/Thrillercnttot, Crimegrosstot/Crimecnttot,Dramagrosstot/Dramacnttot,Animationgrosstot/Animationcnttot,SFgrosstot/SFcnttot,Adventuregrosstot/Adventurecnttot)
+gen$budgettot<-c(Actionbudgettot,Comedybudgettot,Romancebudgettot,Thrillerbudgettot, Crimebudgettot,Dramabudgettot,Animationbudgettot,SFbudgettot,Adventurebudgettot)
+gen$budgetavg <-c(Actionbudgettot/Actioncnttot,Comedybudgettot/Comedycnttot,Romancebudgettot/Romancecnttot,Thrillerbudgettot/Thrillercnttot, Crimebudgettot/Crimecnttot,Dramabudgettot/Dramacnttot,Animationbudgettot/Animationcnttot,SFbudgettot/SFcnttot,Adventurebudgettot/Adventurecnttot)
+
+gen_backup.df <- gen
+```
+
+##### Let's take a closer look at the fluctuations on year to year basis for the top genres we care about 
+```{r}
+#plot genre vs year
+ggplot(genperyear_backup.df, aes(x=Year, y=Count, color=Genre)) + 
+  geom_line(size=0.8)+
+  theme_economist()+
+  labs(x = "Year", y = "Movie Count", title = "Movie Count VS Genre") +  
+  theme(axis.text.x = element_text(size=10, angle=45,face="bold", color="cyan4"),
+        axis.title.x = element_text(color="cyan4", size=12, face="bold"),
+        axis.title.y = element_text(color="cyan4", size=12, face="bold"))
+
+```
+
+##### Let's look at it in a different way. 
+```{r}
+ggplot(genperyear_backup.df, aes(x=Year,y=Count)) +
+  geom_bar(stat="identity") + scale_y_continuous(expand = c(0,10)) +
+  facet_grid(Genre ~ .,scales="free")+
+  theme_economist()+
+  labs(x = "Year", y = "Movie Count", title = "Total number of movies released by genre") +
+  theme(panel.background = element_rect(fill = "white",color="black",linetype="dotted"),
+        axis.title.x = element_text(color="cyan4", size=12, face="bold"),
+        axis.title.y = element_text(color="cyan4", size=12, face="bold"))
+```
+
+
+##### How about their boxoffice performance in millions?
+```{r}
+# scale down everything to millions
+gen_backup.df$avggross = gen_backup.df$avggross / 1000000
+gen_backup.df$grosstot = gen_backup.df$grosstot / 1000000
+gen_backup.df$budgetavg = gen_backup.df$budgetavg / 1000000
+ggplot(gen_backup.df, aes(x=reorder(Genre,-avggross), y=avggross)) + 
+  geom_bar(stat = "identity",  color="red", fill="red", alpha=0.1)+
+  labs(x = "Genre", y = "Average BoxOFfice (in millions)", title = "Average BoxOffice (in millions) by different Genre") +
+  geom_text(aes(label = Genre, y=avggross), position = position_stack(vjust = 0.5), size=3, fontface="bold", color="cyan4")+
+  theme_economist()+
+  theme(axis.text.x=element_blank(),
+        axis.title.x = element_text(color="cyan4", size=12, face="bold"),
+        axis.title.y = element_text(color="cyan4", size=12, face="bold"))
+
+```
+```{r}
+# genre vs box office 
+ggplot(gen_backup.df, aes(x=avggross, y=cnt, color=Genre)) + 
+  geom_point(stat="identity", size=3)+ 
+  theme_economist()+
+  guides(color = FALSE)+
+  geom_label(aes(label = Genre, y=cnt, vjust= "inward", hjust = "inward"), size=3, fontface="bold", color="cyan4")+
+  labs(x = "Average BoxOffice (in millions) ", y = "Movie Count", title = "BoxOffice (in millions)  VS Genre") +
+  theme(axis.text.x = element_text(size=10, angle=45,face="bold", color="cyan4"),
+        axis.title.x = element_text(color="cyan4", size=12, face="bold"),
+        axis.title.y = element_text(color="cyan4", size=12, face="bold"))
+```
+
+
+##### If Animation and Adventure make the most amount of money on average, why does Hollywood prefer Drama, Comedy and etc over these more "profitable" options?
+```{r}
+ggplot(gen_backup.df, aes(x=reorder(Genre,-budgetavg), y=budgetavg)) + 
+  geom_bar(stat = "identity",  color="red", fill="red", alpha=0.1)+
+  labs(x = "Genre", y = "Average Budget (in millions)", title = "Average Budget (in millions) by different Genre") +
+  geom_text(aes(label = Genre, y=budgetavg), position = position_stack(vjust = 0.5), size=3, fontface="bold", color="cyan4")+
+  theme_economist()+
+  theme(axis.text.x=element_blank(),
+        axis.title.x = element_text(color="cyan4", size=12, face="bold"),
+        axis.title.y = element_text(color="cyan4", size=12, face="bold"))
+
+```
+
+##### Indeed, they are more expensive to make. Let's see if we have an outlier that is cheap to make but more profitable than others.
+
+```{r}
+require(stats)
+reg<-lm(avggross ~ budgetavg, data = gen_backup.df)
+# line <- data.frame(gen_reg = predict(reg, gen), gen$avggross)
+# budget vs box office 
+ggplot(gen_backup.df, aes(x=avggross, y=budgetavg, color=Genre)) + 
+  geom_point(stat="identity", size=3)+ 
+  theme_economist()+
+  geom_label(aes(label = Genre, y=budgetavg, vjust="inward", hjust = "inward"), size=3, fontface="bold", color="cyan4")+
+  labs(x = "Average BoxOffice (in millions) ", y = "Average Budget (in millions) ", title = "BoxOffice VS Budget (in millions) ") +
+  geom_abline(intercept= reg$coefficients[1], slope = reg$coefficients[2] , color="cyan4")+
+  # geom_abline(intercept= 9.210, slope = 0.904 , color="cyan4")+
+  guides(color=FALSE)+
+  theme(axis.text.x = element_text(size=6, angle=45,face="bold", color="cyan4"),
+        axis.title.x = element_text(color="cyan4", size=12, face="bold"),
+        axis.title.y = element_text(color="cyan4", size=12, face="bold"))
+
+```
+```{r include=FALSE}
+ggplot(gen_backup.df, aes(x=avggross, y=budgetavg, group=))+
+  geom_boxplot()
+```
+
+##### So the regression looks pretty uniform across all genres, but what does the audience prefer? Let's check the ratings. 
+
+```{r message=FALSE}
+# rating vs genre
+ggplot(gen_backup.df, aes(x=avgrat, y=totrat, color=Genre)) +  
+  geom_point(stat="identity", size=3)+ 
+  theme_economist()+
+  guides(color = FALSE)+
+  scale_x_continuous(breaks=seq(6.1, 6.9, 0.05))+
+  scale_y_continuous(breaks=seq(min(gen_backup.df$totrat) - 2000 , max(gen_backup.df$totrat) +2000 , 2000))+
+  labs(x = "Average Rating ", y = "Total Number of Ratings", title = "Average Rating Score VS total Number of Ratings") +
+  geom_label(aes(label = Genre, y=totrat, vjust="outward", hjust = "outward"), size=3, fontface="bold", color="cyan4")+
+  theme(axis.text.x = element_text(size=10, angle=45,face="bold", color="cyan4"),
+        axis.title.x = element_text(color="cyan4", size=12, face="bold"),
+        axis.title.y = element_text(color="cyan4", size=12, face="bold"))+
+  xlim(min(gen_backup.df$avgrat)-0.05,max(gen_backup.df$avgrat)+0.08)
+
+```
+
+##### So, That's why, even though animation and drama both get high reviews from the audience but dramas targets a broder range of audience, while animation targets a niche market. 
+
+
+```{r}
+# rating vs box office 
+ggplot(gen_backup.df, aes(x=avgrat, y=avggross, color=Genre)) + 
+  geom_point(stat="identity", size=3)+ 
+  theme_economist()+
+  scale_x_continuous(breaks=seq(6.1, 6.9, 0.1))+
+  geom_label(aes(label = Genre, y=avggross, vjust="inward", hjust = "inward"), size=3, fontface="bold", color="cyan4")+
+  labs(x = "Average Rating", y = "Average BoxOffice (in millions)", title = "BoxOffice (in millions)  VS Rating") +
+  guides(color=FALSE)+
+  theme(axis.text.x = element_text(size=10, angle=45,face="bold", color="cyan4"),
+        axis.title.x = element_text(color="cyan4", size=12, face="bold"),
+        axis.title.y = element_text(color="cyan4", size=12, face="bold"))
+
+```
+
+
+```{r}
+ggplot(gen_backup.df, aes(x=avggross, y=cnt, color=Genre)) + 
+  geom_point(stat="identity", size=3)+ 
+  theme_economist()+
+  guides(color = FALSE)+
+  geom_label(aes(label = Genre, y=cnt, vjust= "inward", hjust = "inward"), size=3, fontface="bold", color="cyan4")+
+  labs(x = "Average BoxOffice (in millions) ", y = "Movie Count", title = "BoxOffice (in millions)  VS Genre") +
+  theme(axis.text.x = element_text(size=10, angle=45,face="bold", color="cyan4"),
+        axis.title.x = element_text(color="cyan4", size=12, face="bold"),
+        axis.title.y = element_text(color="cyan4", size=12, face="bold"))
+```
+
+
+
+##### And with similar levels of ratings, The average box office for animation is high, because there are fewer animation made per year for reasons being that they are expensive to make, and targets a smaller audience. Each production company might plan for just one or two per year and make sure that they are well marketed and reach a better theater counts for the high production cost that led to high boxoffice performance risk. 
+
+
+## Real Time Data Sentiment Analysis 
+```{r}
+
+```
+
+
+
+## Prediction 
+```{r}
+
+```
+
+
+```{r bib, include=FALSE}
+# KEEP THIS AT THE END OF THE DOCUMENT TO GENERATE A LOCAL bib FILE FOR PKGS USED
+knitr::write_bib(sub("^package:", "", grep("package", search(), value=TRUE)), file='skeleton.bib')
+```
