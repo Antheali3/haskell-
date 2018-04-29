@@ -31,9 +31,15 @@ tw.df <- read_csv("tweets_clean.csv")
 
 #Creating 1 and 2 grams and creating a sparse matrix
 BigramTokenizer <- function(x) NGramTokenizer(x, Weka_control(min = 1, max = 2))
-dtm_up = DocumentTermMatrix(tw.df, control = list(tokenize = BigramTokenizer))
+dtm_up_iw = DocumentTermMatrix(tw.df$IW, control = list(tokenize = BigramTokenizer))
+dtm_up_aqp = DocumentTermMatrix(tw.df$AQP, control = list(tokenize = BigramTokenizer))
+dtm_up_ifp = DocumentTermMatrix(tw.df$IFP, control = list(tokenize = BigramTokenizer))
+dtm_up_rm = DocumentTermMatrix(tw.df$RM, control = list(tokenize = BigramTokenizer))
 
-freq_up <- colSums(as.matrix(dtm_up))
+freq_up_iw <- colSums(as.matrix(dtm_up_iw))
+freq_up_aqp <- colSums(as.matrix(dtm_up_aqp))
+freq_up_ifp <- colSums(as.matrix(dtm_up_ifp))
+freq_up_rm <- colSums(as.matrix(dtm_up_rm))
 
 
 #Calculating Sentiments
@@ -58,7 +64,56 @@ wordcloud(sent_neg_up$text,sent_neg_up$freq, min.freq=10,colors=brewer.pal(6,"Da
 
 
 #Approach 2 - using the 'syuzhet' package
-text = as.character(tweets$text) 
+iw = as.character(tw.iw.df$IW) 
+
+##removing Retw.iweets
+tw.iw<-gsub("(RT|via)((?:\\b\\w*@\\w+)+)","",iw)
+##let's clean html links
+tw.iw<-gsub("http[^[:blank:]]+","",tw.iw)
+##let's remove people names
+tw.iw<-gsub("@\\w+","",tw.iw)
+##let's remove punctuations
+tw.iw<-gsub("[[:punct:]]"," ",tw.iw)
+##let's remove number (alphanumeric)
+tw.iw<-gsub("[^[:alnum:]]"," ",tw.iw)
+
+
+sent.iw<-get_nrc_sentiment((tw.iw))
+
+# Get the sentiment score for each emotion
+sent.iw.positive =sum(sent.iw$positive)
+sent.iw.anger =sum(sent.iw$anger)
+sent.iw.anticipation =sum(sent.iw$anticipation)
+sent.iw.disgust =sum(sent.iw$disgust)
+sent.iw.fear =sum(sent.iw$fear)
+sent.iw.joy =sum(sent.iw$joy)
+sent.iw.sadness =sum(sent.iw$sadness)
+sent.iw.surprise =sum(sent.iw$surprise)
+sent.iw.trust =sum(sent.iw$trust)
+sent.iw.negative =sum(sent.iw$negative)
+
+# Create the bar chart
+yAxis <- c(sent.iw.positive,
+           + sent.iw.anger,
+           + sent.iw.anticipation,
+           + sent.iw.disgust,
+           + sent.iw.fear,
+           + sent.iw.joy,
+           + sent.iw.sadness,
+           + sent.iw.surprise,
+           + sent.iw.trust,
+           + sent.iw.negative)
+
+xAxis <- c("Positive","Anger","Anticipation","Disgust","Fear","Joy","Sadness","Surprise","Trust","Negative")
+colors <- c("green","red","blue","orange","red","green","orange","blue","green","red")
+yRange <- range(0,yAxis) + 1000
+barplot(yAxis, names.arg = xAxis, 
+        xlab = "Emotional violence", ylab = "Score", main = "Twitter sentiment for tw.iweets 2", sub = "", col = colors, border = "black", ylim = yRange, xpd = F, axisnames = T, cex.axis = 0.8, cex.sub = 0.8, col.sub = "blue")
+colSums(sent.iw)
+
+ 
+#Approach 2 - using the 'syuzhet' package
+text = as.character(tweets$text)
 
 ##removing Retweets
 tw<-gsub("(RT|via)((?:\\b\\w*@\\w+)+)","",text)
@@ -101,7 +156,7 @@ yAxis <- c(mysentiment.positive,
 xAxis <- c("Positive","Anger","Anticipation","Disgust","Fear","Joy","Sadness","Surprise","Trust","Negative")
 colors <- c("green","red","blue","orange","red","green","orange","blue","green","red")
 yRange <- range(0,yAxis) + 1000
-barplot(yAxis, names.arg = xAxis, 
+barplot(yAxis, names.arg = xAxis,
         xlab = "Emotional violence", ylab = "Score", main = "Twitter sentiment for tweets 2", sub = "", col = colors, border = "black", ylim = yRange, xpd = F, axisnames = T, cex.axis = 0.8, cex.sub = 0.8, col.sub = "blue")
 colSums(mysentiment)
 
